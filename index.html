@@ -64,18 +64,20 @@
             justify-content: center;
             gap: 16px;
             margin-bottom: 16px;
+            flex-wrap: wrap;
         }
 
-        .weight-input {
+        .weight-input, .activity-input, .training-input {
             display: flex;
             align-items: center;
             background: var(--white);
             border-radius: 8px;
-            padding: 8px;
+            padding: 8px 16px;
             box-shadow: 0 2px 8px rgba(89, 71, 60, 0.1);
+            gap: 8px;
         }
 
-        input[type="number"] {
+        input[type="number"], select {
             width: 120px;
             padding: 12px;
             border: 2px solid var(--brown-light);
@@ -85,7 +87,7 @@
             transition: all 0.3s ease;
         }
 
-        input[type="number"]:focus {
+        input[type="number"]:focus, select:focus {
             outline: none;
             border-color: var(--turquoise);
             box-shadow: 0 0 0 3px rgba(64, 224, 208, 0.2);
@@ -165,6 +167,31 @@
             font-size: 1.8em;
         }
 
+        .macro-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .macro-card {
+            background: var(--gray-light);
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .macro-card h4 {
+            color: var(--brown-dark);
+            margin-bottom: 8px;
+        }
+
+        .macro-value {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: var(--turquoise);
+        }
+
         .recommendation-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -204,15 +231,6 @@
             left: 0;
         }
 
-        .macro-target {
-            background: var(--brown-light);
-            color: var(--white);
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 16px;
-            font-weight: 600;
-        }
-
         .timing-note {
             font-size: 0.9em;
             color: var(--brown-medium);
@@ -230,17 +248,29 @@
             border-top: 1px solid var(--gray-medium);
         }
 
+        .references {
+            font-size: 0.8em;
+            color: var(--brown-medium);
+            padding: 16px;
+            border-top: 1px solid var(--gray-medium);
+        }
+
         @media (max-width: 600px) {
             .input-group {
                 flex-direction: column;
+                align-items: stretch;
             }
             
-            .weight-input {
+            .weight-input, .activity-input, .training-input {
                 width: 100%;
             }
 
             button.calculate {
                 width: 100%;
+            }
+
+            .macro-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -254,14 +284,39 @@
         <div class="input-section">
             <div class="input-group">
                 <div class="weight-input">
-                    <label for="weight">Weight (kg): </label>
+                    <label for="weight">Weight:</label>
                     <input type="number" id="weight" min="30" max="200" step="0.1" placeholder="70">
+                    <select id="weight-unit">
+                        <option value="kg">kg</option>
+                        <option value="lbs">lbs</option>
+                    </select>
+                </div>
+                <div class="activity-input">
+                    <label for="activity">Daily Activity:</label>
+                    <select id="activity">
+                        <option value="1.2">Sedentary</option>
+                        <option value="1.375">Lightly Active</option>
+                        <option value="1.55" selected>Moderately Active</option>
+                        <option value="1.725">Very Active</option>
+                        <option value="1.9">Extremely Active</option>
+                    </select>
+                </div>
+            </div>
+            <div class="input-group">
+                <div class="training-input">
+                    <label for="training-type">Training Type:</label>
+                    <select id="training-type">
+                        <option value="endurance">Endurance</option>
+                        <option value="strength">Strength</option>
+                        <option value="hiit">HIIT</option>
+                        <option value="ultra">Ultra-Endurance</option>
+                    </select>
+                </div>
+                <div class="training-input">
+                    <label for="training-duration">Duration (hours):</label>
+                    <input type="number" id="training-duration" min="0.5" max="24" step="0.5" value="1.5">
                 </div>
                 <button class="calculate" onclick="calculateNutrition()">Calculate My Needs</button>
-            </div>
-            <div class="input-group" style="justify-content: flex-start;">
-                <input type="checkbox" id="metric" checked onchange="toggleMetric()">
-                <label for="metric">Show metric units (kg)</label>
             </div>
         </div>
 
@@ -297,60 +352,79 @@
             </div>
         </div>
         
+        <div class="references">
+            References: International Society of Sports Nutrition (ISSN), American College of Sports Medicine (ACSM), International Olympic Committee (IOC) consensus statements
+        </div>
+        
         <div class="credit">
             Created with 💪 for athletes who love food
         </div>
     </div>
 
     <script>
-        let isMetric = true;
+        // Constants for calculations
+        const CALORIES_PER_G_CARB = 4;
+        const CALORIES_PER_G_PROTEIN = 4;
+        const CALORIES_PER_G_FAT = 9;
 
-        function toggleMetric() {
-            isMetric = document.getElementById('metric').checked;
-            const weight = document.getElementById('weight').value;
-            if (weight) {
-                if (isMetric) {
-                    document.getElementById('weight').value = (parseFloat(weight) * 0.45359237).toFixed(1);
-                } else {
-                    document.getElementById('weight').value = (parseFloat(weight) / 0.45359237).toFixed(1);
-                }
-            }
-            const weightLabel = document.querySelector('label[for="weight"]');
-            weightLabel.textContent = `Weight (${isMetric ? 'kg' : 'lbs'}): `;
+        // BMR Calculation using Mifflin-St Jeor Equation
+        function calculateBMR(weight, isMetric) {
+            // Convert weight to kg if needed
+            const weightKg = isMetric ? weight : weight * 0.45359237;
+            // Using average height and age for simplicity
+            return (10 * weightKg) + 625; // Simplified version
         }
 
-        function showTab(tabName) {
-            document.querySelectorAll('.timing-content').forEach(tab => tab.style.display = 'none');
-            document.querySelectorAll('.timing-tab').forEach(btn => btn.classList.remove('active'));
+        function calculateTrainingCalories(weight, duration, type, isMetric) {
+            const weightKg = isMetric ? weight : weight * 0.45359237;
+            let caloriesPerHour;
             
-            document.getElementById(`${tabName}-tab`).style.display = 'block';
-            document.querySelector(`button[onclick="showTab('${tabName}')"]`).classList.add('active');
+            switch(type) {
+                case 'endurance':
+                    caloriesPerHour = weightKg * 10; // Moderate intensity
+                    break;
+                case 'strength':
+                    caloriesPerHour = weightKg * 8; // Strength training
+                    break;
+                case 'hiit':
+                    caloriesPerHour = weightKg * 12; // High intensity
+                    break;
+                case 'ultra':
+                    caloriesPerHour = weightKg * 11; // Ultra-endurance
+                    break;
+                default:
+                    caloriesPerHour = weightKg * 10;
+            }
+            
+            return caloriesPerHour * duration;
         }
 
         function calculateNutrition() {
-            let weight = parseFloat(document.getElementById('weight').value);
+            const weight = parseFloat(document.getElementById('weight').value);
+            const isMetric = document.getElementById('weight-unit').value === 'kg';
+            const activityLevel = parseFloat(document.getElementById('activity').value);
+            const trainingType = document.getElementById('training-type').value;
+            const trainingDuration = parseFloat(document.getElementById('training-duration').value);
             
             if (!weight || weight < 0) {
                 alert('Please enter a valid weight');
                 return;
             }
 
-            if (!isMetric) {
-                weight = weight * 0.45359237;
-            }
+            const weightKg = isMetric ? weight : weight * 0.45359237;
+            
+            // Calculate daily calorie needs
+            const bmr = calculateBMR(weightKg, true);
+            const tdee = bmr * activityLevel;
+            const trainingCalories = calculateTrainingCalories(weightKg, trainingDuration, trainingType, true);
+            const totalDailyCalories = tdee + trainingCalories;
 
-            if (weight < 30 || weight > 200) {
-                alert('Please enter a weight between ' + (isMetric ? '30-200 kg' : '66-440 lbs'));
-                return;
-            }
-
-            document.getElementById('results').style.display = 'block';
-
+            // Calculate macros based on training type and timing
             const carbsBefore = {
-                total24hr: weight * 10,
-                dinner: weight * 2.5,
-                preMeal: weight * 2.5,
-                preSnack: weight * 0.375
+                total24hr: weightKg * 10,
+                dinner: weightKg * 2.5,
+                preMeal: weightKg * 2.5,
+                preSnack: weightKg * 0.375
             };
 
             const carbsDuring = {
@@ -360,29 +434,44 @@
             };
 
             const carbsAfter = {
-                quickRecovery: weight * 1.1,
-                protein: weight * 0.35
+                quickRecovery: weightKg * 1.1,
+                protein: weightKg * 0.35
             };
 
-            document.getElementById('before-recommendations').innerHTML = generateBeforeRecommendations(carbsBefore);
-            document.getElementById('during-recommendations').innerHTML = generateDuringRecommendations(carbsDuring);
-            document.getElementById('after-recommendations').innerHTML = generateAfterRecommendations(carbsAfter);
+            // Show results
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('before-recommendations').innerHTML = generateBeforeRecommendations(carbsBefore, totalDailyCalories);
+            document.getElementById('during-recommendations').innerHTML = generateDuringRecommendations(carbsDuring, trainingCalories);
+            document.getElementById('after-recommendations').innerHTML = generateAfterRecommendations(carbsAfter, trainingCalories);
 
             showTab('before');
         }
 
-        function generateBeforeRecommendations(carbs) {
+        function generateBeforeRecommendations(carbs, totalCals) {
             return `
-                <div class="macro-target">
-                    24-Hour Target: ${Math.round(carbs.total24hr)}g carbohydrates
+                <div class="macro-grid">
+                    <div class="macro-card">
+                        <h4>Daily Calories</h4>
+                        <div class="macro-value">${Math.round(totalCals)} kcal</div>
+                    </div>
+                    <div class="macro-card">
+                        <h4>Daily Carbs</h4>
+                        <div class="macro-value">${Math.round(carbs.total24hr)}g</div>
+                        <div class="macro-detail">${Math.round(carbs.total24hr * CALORIES_PER_G_CARB)} kcal</div>
+                    </div>
+                    <div class="macro-card">
+                        <h4>Protein Target</h4>
+                        <div class="macro-value">${Math.round(totalCals * 0.25 / CALORIES_PER_G_PROTEIN)}g</div>
+                        <div class="macro-detail">${Math.round(totalCals * 0.25)} kcal</div>
+                    </div>
                 </div>
                 
                 <div class="timing-note">
                     Timing breakdown:
                     <ul>
-                        <li>Night before: ${Math.round(carbs.dinner)}g carbs</li>
-                        <li>2-3 hours before: ${Math.round(carbs.preMeal)}g carbs</li>
-                        <li>15-30 min before: ${Math.round(carbs.preSnack)}g carbs</li>
+                        <li>Night before: ${Math.round(carbs.dinner)}g carbs (${Math.round(carbs.dinner * CALORIES_PER_G_CARB)} kcal)</li>
+                        <li>2-3 hours before: ${Math.round(carbs.preMeal)}g carbs (${Math.round(carbs.preMeal * CALORIES_PER_G_CARB)} kcal)</li>
+                        <li>15-30 min before: ${Math.round(carbs.preSnack)}g carbs (${Math.round(carbs.preSnack * CALORIES_PER_G_CARB)} kcal)</li>
                     </ul>
                 </div>
 
@@ -390,37 +479,49 @@
                     <div class="food-section">
                         <h4>🥗 Boring (But Effective)</h4>
                         <ul class="food-list">
-                            <li>${Math.round(carbs.total24hr/75)} cups cooked rice</li>
-                            <li>${Math.round(carbs.total24hr/30)} medium potatoes</li>
-                            <li>${Math.round(carbs.total24hr/45)} cups oatmeal</li>
-                            <li>${Math.round(carbs.total24hr/40)} servings pasta</li>
+                            <li>${Math.round(carbs.total24hr/75)} cups cooked rice (${Math.round(75 * CALORIES_PER_G_CARB)} kcal/cup)</li>
+                            <li>${Math.round(carbs.total24hr/30)} medium potatoes (${Math.round(30 * CALORIES_PER_G_CARB)} kcal each)</li>
+                            <li>${Math.round(carbs.total24hr/45)} cups oatmeal (${Math.round(45 * CALORIES_PER_G_CARB)} kcal/cup)</li>
+                            <li>${Math.round(carbs.total24hr/40)} servings pasta (${Math.round(40 * CALORIES_PER_G_CARB)} kcal/serving)</li>
                         </ul>
                     </div>
 
                     <div class="food-section">
                         <h4>🍕 Fun Options</h4>
                         <ul class="food-list">
-                            <li>${Math.round(carbs.total24hr/50)} medium pizzas</li>
-                            <li>${Math.round(carbs.total24hr/45)} burger & fries combos</li>
-                            <li>${Math.round(carbs.total24hr/30)} restaurant pasta bowls</li>
-                            <li>${Math.round(carbs.total24hr/35)} sub sandwiches</li>
+                            <li>${Math.round(carbs.total24hr/50)} medium pizzas (~300 kcal/slice)</li>
+                            <li>${Math.round(carbs.total24hr/45)} burger & fries combos (~600 kcal)</li>
+                            <li>${Math.round(carbs.total24hr/30)} restaurant pasta bowls (~800 kcal)</li>
+                            <li>${Math.round(carbs.total24hr/35)} sub sandwiches (~400 kcal)</li>
                         </ul>
                     </div>
                 </div>
             `;
         }
 
-        function generateDuringRecommendations(carbs) {
+        function generateDuringRecommendations(carbs, trainingCals) {
             return `
-                <div class="macro-target">
-                    Choose your experience level:
+                <div class="macro-grid">
+                    <div class="macro-card">
+                        <h4>Training Calories</h4>
+                        <div class="macro-value">${Math.round(trainingCals)} kcal</div>
+                    </div>
+                    <div class="macro-card">
+                        <h4>Hourly Carbs</h4>
+                        <div class="macro-value">${carbs.experienced}g</div>
+                        <div class="macro-detail">${Math.round(carbs.experienced * CALORIES_PER_G_CARB)} kcal</div>
+                    </div>
+                    <div class="macro-card">
+                        <h4>Fluid Needs</h4>
+                        <div class="macro-value">500-700ml/hr</div>
+                    </div>
                 </div>
 
                 <div class="timing-note">
                     <ul>
-                        <li>Beginner: ${carbs.beginner}g carbs/hour</li>
-                        <li>Experienced: ${carbs.experienced}g carbs/hour</li>
-                        <li>Ultra-endurance: ${carbs.ultra}g carbs/hour</li>
+                        <li>Beginner: ${carbs.beginner}g carbs/hour (${Math.round(carbs.beginner * CALORIES_PER_G_CARB)} kcal)</li>
+                        <li>Experienced: ${carbs.experienced}g carbs/hour (${Math.round(carbs.experienced * CALORIES_PER_G_CARB)} kcal)</li>
+                        <li>Ultra-endurance: ${carbs.ultra}g carbs/hour (${Math.round(carbs.ultra * CALORIES_PER_G_CARB)} kcal)</li>
                     </ul>
                 </div>
 
@@ -428,30 +529,45 @@
                     <div class="food-section">
                         <h4>🏃‍♂️ Boring (But Effective)</h4>
                         <ul class="food-list">
-                            <li>${Math.round(carbs.experienced/25)} energy gels per hour</li>
-                            <li>${Math.round(carbs.experienced/30)} sports drinks (500ml)</li>
-                            <li>${Math.round(carbs.experienced/27)} bananas</li>
-                            <li>${Math.round(carbs.experienced/20)} energy bars</li>
+                            <li>${Math.round(carbs.experienced/25)} energy gels (100 kcal each)</li>
+                            <li>${Math.round(carbs.experienced/30)} sports drinks (120 kcal/500ml)</li>
+                            <li>${Math.round(carbs.experienced/27)} bananas (105 kcal each)</li>
+                            <li>${Math.round(carbs.experienced/20)} energy bars (200 kcal each)</li>
                         </ul>
                     </div>
 
                     <div class="food-section">
                         <h4>🍫 Fun Options</h4>
                         <ul class="food-list">
-                            <li>${Math.round(carbs.experienced/15)} fun-size candy bars</li>
-                            <li>${Math.round(carbs.experienced/25)} fruit roll-ups</li>
-                            <li>${Math.round(carbs.experienced/20)} handfuls gummy bears</li>
-                            <li>${Math.round(carbs.experienced/18)} cookies</li>
+                            <li>${Math.round(carbs.experienced/15)} fun-size candy bars (80 kcal each)</li>
+                            <li>${Math.round(carbs.experienced/25)} fruit roll-ups (50 kcal each)</li>
+                            <li>${Math.round(carbs.experienced/20)} handfuls gummy bears (130 kcal/handful)</li>
+                            <li>${Math.round(carbs.experienced/18)} cookies (90 kcal each)</li>
                         </ul>
                     </div>
                 </div>
             `;
         }
 
-        function generateAfterRecommendations(carbs) {
+        function generateAfterRecommendations(carbs, trainingCals) {
+            const recoveryCalories = Math.round(trainingCals * 0.3); // 30% of training calories for immediate recovery
+
             return `
-                <div class="macro-target">
-                    Recovery Target: ${Math.round(carbs.quickRecovery)}g carbs + ${Math.round(carbs.protein)}g protein
+                <div class="macro-grid">
+                    <div class="macro-card">
+                        <h4>Recovery Calories</h4>
+                        <div class="macro-value">${recoveryCalories} kcal</div>
+                    </div>
+                    <div class="macro-card">
+                        <h4>Recovery Carbs</h4>
+                        <div class="macro-value">${Math.round(carbs.quickRecovery)}g</div>
+                        <div class="macro-detail">${Math.round(carbs.quickRecovery * CALORIES_PER_G_CARB)} kcal</div>
+                    </div>
+                    <div class="macro-card">
+                        <h4>Recovery Protein</h4>
+                        <div class="macro-value">${Math.round(carbs.protein)}g</div>
+                        <div class="macro-detail">${Math.round(carbs.protein * CALORIES_PER_G_PROTEIN)} kcal</div>
+                    </div>
                 </div>
 
                 <div class="timing-note">
@@ -462,24 +578,32 @@
                     <div class="food-section">
                         <h4>🥤 Boring (But Effective)</h4>
                         <ul class="food-list">
-                            <li>${Math.round(carbs.quickRecovery/40)} protein smoothies</li>
-                            <li>${Math.round(carbs.quickRecovery/30)} turkey sandwiches</li>
-                            <li>${Math.round(carbs.quickRecovery/25)} bowls cereal with milk</li>
-                            <li>${Math.round(carbs.quickRecovery/35)} protein bars + banana</li>
+                            <li>${Math.round(carbs.quickRecovery/40)} protein smoothies (300 kcal each)</li>
+                            <li>${Math.round(carbs.quickRecovery/30)} turkey sandwiches (350 kcal each)</li>
+                            <li>${Math.round(carbs.quickRecovery/25)} bowls cereal with milk (200 kcal/bowl)</li>
+                            <li>${Math.round(carbs.quickRecovery/35)} protein bars + banana (250 kcal total)</li>
                         </ul>
                     </div>
 
                     <div class="food-section">
                         <h4>🍔 Fun Options</h4>
                         <ul class="food-list">
-                            <li>${Math.round(carbs.quickRecovery/35)} chocolate milkshakes</li>
-                            <li>${Math.round(carbs.quickRecovery/40)} chicken nugget meals</li>
-                            <li>${Math.round(carbs.quickRecovery/45)} slices pizza</li>
-                            <li>${Math.round(carbs.quickRecovery/38)} breakfast sandwiches</li>
+                            <li>${Math.round(carbs.quickRecovery/35)} chocolate milkshakes (400 kcal each)</li>
+                            <li>${Math.round(carbs.quickRecovery/40)} chicken nugget meals (450 kcal/meal)</li>
+                            <li>${Math.round(carbs.quickRecovery/45)} slices pizza (300 kcal/slice)</li>
+                            <li>${Math.round(carbs.quickRecovery/38)} breakfast sandwiches (350 kcal each)</li>
                         </ul>
                     </div>
                 </div>
             `;
+        }
+
+        function showTab(tabName) {
+            document.querySelectorAll('.timing-content').forEach(tab => tab.style.display = 'none');
+            document.querySelectorAll('.timing-tab').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(`${tabName}-tab`).style.display = 'block';
+            document.querySelector(`button[onclick="showTab('${tabName}')"]`).classList.add('active');
         }
     </script>
 </body>
