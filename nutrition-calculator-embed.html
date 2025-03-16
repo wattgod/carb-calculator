@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Athletic Nutrition Calculator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.5;
+            margin: 0;
+            padding: 15px;
+            background-color: transparent;
+            color: #333;
+            font-size: 16px;
+        }
+        .calculator {
+            max-width: 100%;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .calculator-header {
+            background: #1a91da;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+        .calculator-header h1 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+        .input-section {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        input[type="number"] {
+            padding: 8px 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 4px;
+            width: 100px;
+            font-size: 16px;
+        }
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #1a91da;
+        }
+        button {
+            background-color: #1a91da;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #157ab5;
+        }
+        .results {
+            display: none;
+            padding: 20px;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        .tab-button {
+            flex: 1;
+            padding: 8px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #495057;
+        }
+        .tab-button.active {
+            background: #1a91da;
+            color: white;
+        }
+        .recommendation {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .food-section {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            border-left: 3px solid #1a91da;
+        }
+        .food-section h4 {
+            margin: 0 0 10px 0;
+            color: #1a91da;
+        }
+        ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 5px;
+        }
+        .credit {
+            text-align: center;
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="calculator">
+        <div class="calculator-header">
+            <h1>Athletic Nutrition Calculator</h1>
+        </div>
+        
+        <div class="input-section">
+            <div class="input-group">
+                <label for="weight">Your Weight (kg): </label>
+                <input type="number" id="weight" min="30" max="200" step="0.1" placeholder="70">
+                <button onclick="calculateNutrition()">Calculate</button>
+            </div>
+            <div class="input-group" style="justify-content: flex-start;">
+                <input type="checkbox" id="metric" checked onchange="toggleMetric()">
+                <label for="metric">Show metric units (kg)</label>
+            </div>
+        </div>
+
+        <div class="results" id="results">
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="showTab('before')">Before</button>
+                <button class="tab-button" onclick="showTab('during')">During</button>
+                <button class="tab-button" onclick="showTab('after')">After</button>
+            </div>
+
+            <div id="before-tab" class="tab-content">
+                <div id="before-recommendations"></div>
+            </div>
+
+            <div id="during-tab" class="tab-content" style="display: none;">
+                <div id="during-recommendations"></div>
+            </div>
+
+            <div id="after-tab" class="tab-content" style="display: none;">
+                <div id="after-recommendations"></div>
+            </div>
+        </div>
+        
+        <div class="credit">
+            Created with 💪 for athletes who love food
+        </div>
+    </div>
+
+    <script>
+        let isMetric = true;
+
+        function toggleMetric() {
+            isMetric = document.getElementById('metric').checked;
+            const weight = document.getElementById('weight').value;
+            if (weight) {
+                if (isMetric) {
+                    document.getElementById('weight').value = (parseFloat(weight) * 0.45359237).toFixed(1);
+                } else {
+                    document.getElementById('weight').value = (parseFloat(weight) / 0.45359237).toFixed(1);
+                }
+            }
+            const weightLabel = document.querySelector('label[for="weight"]');
+            weightLabel.textContent = `Your Weight (${isMetric ? 'kg' : 'lbs'}): `;
+        }
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            
+            // Show selected tab
+            document.getElementById(`${tabName}-tab`).style.display = 'block';
+            document.querySelector(`button[onclick="showTab('${tabName}')"]`).classList.add('active');
+        }
+
+        function calculateNutrition() {
+            let weight = parseFloat(document.getElementById('weight').value);
+            
+            if (!weight || weight < 0) {
+                alert('Please enter a valid weight');
+                return;
+            }
+
+            // Convert lbs to kg if necessary
+            if (!isMetric) {
+                weight = weight * 0.45359237;
+            }
+
+            if (weight < 30 || weight > 200) {
+                alert('Please enter a weight between ' + (isMetric ? '30-200 kg' : '66-440 lbs'));
+                return;
+            }
+
+            // Show results
+            document.getElementById('results').style.display = 'block';
+
+            // Before Event Calculations
+            const carbsBefore = {
+                total24hr: weight * 10,
+                dinner: weight * 2.5,
+                preMeal: weight * 2.5,
+                preSnack: weight * 0.375
+            };
+
+            // During Exercise Calculations
+            const carbsDuring = {
+                beginner: 45,
+                experienced: 75,
+                ultra: 105
+            };
+
+            // After Exercise Calculations
+            const carbsAfter = {
+                quickRecovery: weight * 1.1,
+                protein: weight * 0.35
+            };
+
+            // Generate recommendations
+            document.getElementById('before-recommendations').innerHTML = generateBeforeRecommendations(carbsBefore);
+            document.getElementById('during-recommendations').innerHTML = generateDuringRecommendations(carbsDuring);
+            document.getElementById('after-recommendations').innerHTML = generateAfterRecommendations(carbsAfter);
+
+            // Show the first tab by default
+            showTab('before');
+        }
+
+        function generateBeforeRecommendations(carbs) {
+            return `
+                <div class="recommendation">
+                    <h3>24 Hours Before Event</h3>
+                    <p>Target: ${Math.round(carbs.total24hr)}g carbohydrates total</p>
+                    
+                    <div class="food-section">
+                        <h4>🥗 Boring (But Effective) Options:</h4>
+                        <ul>
+                            <li>${Math.round(carbs.total24hr/75)} cups of cooked rice</li>
+                            <li>${Math.round(carbs.total24hr/30)} medium potatoes</li>
+                            <li>${Math.round(carbs.total24hr/45)} cups of oatmeal</li>
+                        </ul>
+                    </div>
+
+                    <div class="food-section">
+                        <h4>🍕 Fun Options:</h4>
+                        <ul>
+                            <li>${Math.round(carbs.total24hr/50)} medium pizzas</li>
+                            <li>${Math.round(carbs.total24hr/45)} burger & fries combos</li>
+                            <li>${Math.round(carbs.total24hr/30)} bowls of restaurant pasta</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateDuringRecommendations(carbs) {
+            return `
+                <div class="recommendation">
+                    <h3>During Exercise (>90 minutes)</h3>
+                    <p>Hourly Targets:</p>
+                    <ul>
+                        <li>Beginner: ${carbs.beginner}g/hour</li>
+                        <li>Experienced: ${carbs.experienced}g/hour</li>
+                        <li>Ultra: ${carbs.ultra}g/hour</li>
+                    </ul>
+
+                    <div class="food-section">
+                        <h4>🏃‍♂️ Boring (But Effective) Options:</h4>
+                        <ul>
+                            <li>${Math.round(carbs.experienced/25)} energy gels</li>
+                            <li>${Math.round(carbs.experienced/30)} sports drinks (500ml)</li>
+                            <li>${Math.round(carbs.experienced/27)} bananas</li>
+                        </ul>
+                    </div>
+
+                    <div class="food-section">
+                        <h4>🍫 Fun Options:</h4>
+                        <ul>
+                            <li>${Math.round(carbs.experienced/15)} fun-size candy bars</li>
+                            <li>${Math.round(carbs.experienced/25)} fruit roll-ups</li>
+                            <li>${Math.round(carbs.experienced/20)} handfuls of gummy bears</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateAfterRecommendations(carbs) {
+            return `
+                <div class="recommendation">
+                    <h3>Quick Recovery (within 1 hour)</h3>
+                    <p>Target: ${Math.round(carbs.quickRecovery)}g carbs and ${Math.round(carbs.protein)}g protein</p>
+
+                    <div class="food-section">
+                        <h4>🥤 Boring (But Effective) Options:</h4>
+                        <ul>
+                            <li>${Math.round(carbs.quickRecovery/40)} protein smoothies</li>
+                            <li>${Math.round(carbs.quickRecovery/30)} turkey sandwiches</li>
+                            <li>${Math.round(carbs.quickRecovery/25)} bowls of cereal with milk</li>
+                        </ul>
+                    </div>
+
+                    <div class="food-section">
+                        <h4>🍔 Fun Options:</h4>
+                        <ul>
+                            <li>${Math.round(carbs.quickRecovery/35)} chocolate milkshakes</li>
+                            <li>${Math.round(carbs.quickRecovery/40)} chicken nugget meals</li>
+                            <li>${Math.round(carbs.quickRecovery/45)} slices of pizza</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html> 
